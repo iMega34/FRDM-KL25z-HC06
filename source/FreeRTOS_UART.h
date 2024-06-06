@@ -37,6 +37,9 @@ void UART_Init_Config(UART_Type* uart, uint32_t baudRate, uint32_t clkFreq) {
     }
 }
 
+/*
+ * @brief Inicializa la rutina de interrupción para el módulo UART0
+ */
 void UART0_IRQHandler(void) {
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     uint32_t data;
@@ -49,6 +52,9 @@ void UART0_IRQHandler(void) {
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
+/*
+ * @brief Inicializa la rutina de interrupción para el módulo UART1
+ */
 void UART1_IRQHandler(void) {
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     uint32_t data;
@@ -61,6 +67,9 @@ void UART1_IRQHandler(void) {
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
+/*
+ * @brief Inicializa la rutina de interrupción para el módulo UART2
+ */
 void UART2_IRQHandler(void) {
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     uint32_t data;

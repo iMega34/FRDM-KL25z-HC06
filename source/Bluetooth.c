@@ -17,6 +17,9 @@
 #define MESSAGE_QUEUE_ITEM_SIZE 64
 #define TASK_STACK_SIZE (configMINIMAL_STACK_SIZE + 100)
 
+/*
+ * @brief Tarea que recibe los datos del módulo Bluetooth por UART desde la terminal
+*/
 void vTaskBluetooth(void *pvParameters) {
     char receivedChar;
     char buffer[64];
@@ -40,6 +43,9 @@ void vTaskBluetooth(void *pvParameters) {
     }
 }
 
+/*
+ * @brief Tarea que recibe los mensajes de la cola de mensajes y los muestra en el LCD
+*/
 void vTaskLCD(void *pvParameters) {
     char receivedString[64];
 
@@ -61,7 +67,6 @@ void vTaskLCD(void *pvParameters) {
 
 int main(void) {
 
-    /* Init board hardware. */
     BOARD_InitBootPins();
     BOARD_InitBootClocks();
     BOARD_InitBootPeripherals();

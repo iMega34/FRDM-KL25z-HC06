@@ -22,7 +22,7 @@ I2C_Type* master_i2c;
 /*
  * @brief Inicializa el módulo I2C0
  * 
- * 
+ * @param i2c Módulo I2C a inicializar
 */
 void I2C_Init_Config(I2C_Type* i2c) {
     i2c_master_config_t masterConfig;
@@ -77,6 +77,11 @@ void I2C_Write_Byte(uint8_t data) {
     }
 }
 
+/*
+ * @brief Inicializa el módulo I2C0
+ * 
+ * @param i2c Módulo I2C a inicializar
+*/
 void LCD_Init_Config(I2C_Type* i2c) {
     I2C_Init_Config(i2c);
     // Modo 4 bits
@@ -92,6 +97,12 @@ void LCD_Init_Config(I2C_Type* i2c) {
     vTaskDelay(pdMS_TO_TICKS(5));
 }
 
+/*
+ * @brief Envía un byte al LCD
+ * 
+ * @param data Byte a enviar
+ * @param mode Modo de envío (comando o dato)
+*/
 void LCD_Send(uint8_t data, uint8_t mode) {
     // Divide el byte en dos nibbles
     uint8_t highNibble = data & 0xF0;
@@ -106,14 +117,29 @@ void LCD_Send(uint8_t data, uint8_t mode) {
     I2C_Write_Byte(lowNibble | mode | 0x08);    // Enviar habilitación baja
 }
 
+/*
+ * @brief Envía un comando al LCD
+ * 
+ * @param command Comando a enviar
+*/
 void LCD_Command(uint8_t command) {
     LCD_Send(command, 0x00);
 }
 
+/*
+ * @brief Envía un dato al LCD
+ * 
+ * @param data Dato a enviar
+*/
 void LCD_Data(uint8_t data) {
     LCD_Send(data, 0x01);
 }
 
+/*
+ * @brief Imprime una cadena de caracteres en la primera línea del LCD
+ * 
+ * @param str Cadena de caracteres a imprimir
+*/
 void LCD_print_1st_line(char* str) {
     // Mueve el cursor al inicio de la primera línea
     LCD_Command(0x80);
@@ -124,6 +150,11 @@ void LCD_print_1st_line(char* str) {
     while (*str) { LCD_Data(*str++); }
 }
 
+/*
+ * @brief Imprime una cadena de caracteres en la segunda línea del LCD
+ * 
+ * @param str Cadena de caracteres a imprimir
+*/
 void LCD_print_2nd_line(char* str) {
     // Mueve el cursor al inicio de la segunda línea
     LCD_Command(0xC0);
@@ -134,6 +165,9 @@ void LCD_print_2nd_line(char* str) {
     while (*str) { LCD_Data(*str++); }
 }
 
+/*
+ * @brief Limpia la pantalla del LCD
+*/
 void LCD_clear() {
     LCD_Command(0x01);
 }
