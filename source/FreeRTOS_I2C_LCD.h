@@ -20,7 +20,7 @@ i2c_master_transfer_t masterXfer;
 I2C_Type* master_i2c;
 
 /*
- * @brief Inicializa el módulo I2C0
+ * @brief Inicializa el módulo I2C
  * 
  * @param i2c Módulo I2C a inicializar
 */
@@ -78,12 +78,13 @@ void I2C_Write_Byte(uint8_t data) {
 }
 
 /*
- * @brief Inicializa el módulo I2C0
+ * @brief Inicializa el módulo I2C
  * 
  * @param i2c Módulo I2C a inicializar
 */
 void LCD_Init_Config(I2C_Type* i2c) {
     I2C_Init_Config(i2c);
+    vTaskDelay(pdMS_TO_TICKS(5));
     // Modo 4 bits
     LCD_Command(0x02);
     // Modo 4 bits, 2 líneas, 5x7
