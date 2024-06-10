@@ -6,27 +6,50 @@
 #include <fsl_port.h>
 #include <fsl_uart.h>
 #include <FreeRTOS.h>
+#include <semphr.h>
 #include <queue.h>
 
-QueueHandle_t uartQueue;
+#define MAX_CHUNK_LENGTH        (20 * sizeof(uint8_t))
 
-/*
- * @brief Inicializa el módulo UART
- * 
- * @param uart Módulo UART a inicializar
- * @param baudRate Velocidad de transmisión en baudios
- * @param clkFreq Frecuencia del reloj del módulo UART
-*/
-void UART_Init_Config(UART_Type* uart, uint32_t baudRate, uint32_t clkFreq) {
+SemaphoreHandle_t uartMutex;
+QueueHandle_t uartSendQueue;
+QueueHandle_t uartReceiveQueue;
+
+/**
+ * Inicializa el módulo UART
+ */
+void UART_Init_Config(UART_Type* uart) {
     uart_config_t config;
-    UART_GetDefaultConfig(&config);
+    uint32_t uartClkSrcFreq;
 
-    config.baudRate_Bps = baudRate;
+    if (uart == UART0) {
+        CLOCK_EnableClock(kCLOCK_PortA);
+        PORT_SetPinMux(PORTA, 1U, 2U);
+        PORT_SetPinMux(PORTA, 2U, 2U);
+    } else if (uart == UART1) {
+        CLOCK_EnableClock(kCLOCK_PortC);
+        PORT_SetPinMux(PORTC, 3U, 3U);
+        PORT_SetPinMux(PORTC, 4U, 3U);
+    } else if (uart == UART2) {
+        CLOCK_EnableClock(kCLOCK_PortE);
+        PORT_SetPinMux(PORTE, 22U, 4U);
+        PORT_SetPinMux(PORTE, 23U, 4U);
+    }
+
+    UART_GetDefaultConfig(&config);
+    config.baudRate_Bps = 9600;
     config.enableTx = true;
     config.enableRx = true;
 
-    UART_Init(uart, &config, clkFreq);
+    uartClkSrcFreq = CLOCK_GetFreq(kCLOCK_BusClk);
+    UART_Init(uart, &config, uartClkSrcFreq);
     UART_EnableInterrupts(uart, kUART_RxDataRegFullInterruptEnable);
+
+    uartMutex = xSemaphoreCreateMutex();
+    if (uartMutex == NULL) {
+        printf("Failed to create UART Mutex\r");
+        while (1);
+    }
 
     if (uart == UART0) {
         EnableIRQ(UART0_IRQn);
@@ -34,6 +57,34 @@ void UART_Init_Config(UART_Type* uart, uint32_t baudRate, uint32_t clkFreq) {
         EnableIRQ(UART1_IRQn);
     } else if (uart == UART2) {
         EnableIRQ(UART2_IRQn);
+    }
+}
+
+/**
+ * @brief Envía una cadena de caracteres a través del módulo UART
+ *
+ * @param uart Módulo de UART a utilizar
+ * @param str Cadena de caracteres a enviar
+ */
+void UART_SendString(UART_Type* uart, const char* str) {
+    if (xSemaphoreTake(uartMutex, portMAX_DELAY)) {
+        char response[128];
+        sprintf(response, "Comando recibido: %s\r", str);
+
+        size_t offset = 0;
+        size_t stringLength = strlen(response);
+
+        while (offset < stringLength) {
+            size_t chunkLength = (stringLength - offset < MAX_CHUNK_LENGTH)
+                ? stringLength - offset
+                : MAX_CHUNK_LENGTH;
+
+            UART_WriteBlocking(uart, (uint8_t*) (response + offset), chunkLength);
+            offset += chunkLength;
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+
+        xSemaphoreGive(uartMutex);
     }
 }
 
@@ -46,7 +97,7 @@ void UART0_IRQHandler(void) {
 
     if (kUART_RxDataRegFullFlag & UART_GetStatusFlags(UART0)) {
         data = UART_ReadByte(UART0);
-        xQueueSendFromISR(uartQueue, &data, &xHigherPriorityTaskWoken);
+        xQueueSendFromISR(uartReceiveQueue, &data, &xHigherPriorityTaskWoken);
     }
 
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
@@ -61,7 +112,7 @@ void UART1_IRQHandler(void) {
 
     if (kUART_RxDataRegFullFlag & UART_GetStatusFlags(UART1)) {
         data = UART_ReadByte(UART1);
-        xQueueSendFromISR(uartQueue, &data, &xHigherPriorityTaskWoken);
+        xQueueSendFromISR(uartReceiveQueue, &data, &xHigherPriorityTaskWoken);
     }
 
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
@@ -76,43 +127,10 @@ void UART2_IRQHandler(void) {
 
     if (kUART_RxDataRegFullFlag & UART_GetStatusFlags(UART2)) {
         data = UART_ReadByte(UART2);
-        xQueueSendFromISR(uartQueue, &data, &xHigherPriorityTaskWoken);
+        xQueueSendFromISR(uartReceiveQueue, &data, &xHigherPriorityTaskWoken);
     }
 
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
-}
-
-/*
- * @brief Inicializa los pines del módulo UART
- * 
- * @param uart Módulo UART a inicializar
- * 
- * Asigna los pines correspondientes a la UART seleccionada.
- * Los modulos UART soportados son UART0, UART1 y UART2, los cuales están mapeados de la siguiente manera:
- * - UART0: Puerto A, pines 1 y 2
- * - UART1: Puerto C, pines 3 y 4
- * - UART2: Puerto E, pines 22 y 23
-*/
-void UART_Init_Pins(UART_Type* uart) {
-    if (uart == UART0) {
-        // Habilita el reloj para el puerto A
-        CLOCK_EnableClock(kCLOCK_PortA);
-        // Configura los pines 1 y 2 del puerto A como UART0_TX y UART0_RX
-        PORT_SetPinMux(PORTA, 1U, 2U);
-        PORT_SetPinMux(PORTA, 2U, 2U);
-    } else if (uart == UART1) {
-        // Habilita el reloj para el puerto C
-        CLOCK_EnableClock(kCLOCK_PortC);
-        // Configura los pines 3 y 4 del puerto C como UART1_TX y UART1_RX
-        PORT_SetPinMux(PORTC, 3U, 3U);
-        PORT_SetPinMux(PORTC, 4U, 3U);
-    } else if (uart == UART2) {
-        // Habilita el reloj para el puerto E
-        CLOCK_EnableClock(kCLOCK_PortE);
-        // Configura los pines 22 y 23 del puerto E como UART2_TX y UART2_RX
-        PORT_SetPinMux(PORTE, 22U, 4U);
-        PORT_SetPinMux(PORTE, 23U, 4U);
-    }
 }
 
 #endif // UART_H
