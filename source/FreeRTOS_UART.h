@@ -11,9 +11,19 @@
 
 #define MAX_CHUNK_LENGTH        (20 * sizeof(uint8_t))
 
-SemaphoreHandle_t uartMutex;
-QueueHandle_t uartSendQueue;
-QueueHandle_t uartReceiveQueue;
+typedef struct {
+    UART_Type *uart;
+    QueueHandle_t rxQueue;
+    QueueHandle_t txQueue;
+    SemaphoreHandle_t uartMutex;
+} UARTParams_t;
+
+QueueHandle_t uartRxQueue1;
+QueueHandle_t uartRxQueue2;
+QueueHandle_t uartTxQueue1;
+QueueHandle_t uartTxQueue2;
+SemaphoreHandle_t uartMutex1;
+SemaphoreHandle_t uartMutex2;
 
 /**
  * Inicializa el módulo UART
@@ -24,16 +34,16 @@ void UART_Init_Config(UART_Type* uart) {
 
     if (uart == UART0) {
         CLOCK_EnableClock(kCLOCK_PortA);
-        PORT_SetPinMux(PORTA, 1U, 2U);
-        PORT_SetPinMux(PORTA, 2U, 2U);
+        PORT_SetPinMux(PORTA, 1U, 2U);  // TX
+        PORT_SetPinMux(PORTA, 2U, 2U);  // RX
     } else if (uart == UART1) {
-        CLOCK_EnableClock(kCLOCK_PortC);
-        PORT_SetPinMux(PORTC, 3U, 3U);
-        PORT_SetPinMux(PORTC, 4U, 3U);
+        CLOCK_EnableClock(kCLOCK_PortE);
+        PORT_SetPinMux(PORTE, 0U, 3U);  // TX
+        PORT_SetPinMux(PORTE, 1U, 3U);  // RX
     } else if (uart == UART2) {
         CLOCK_EnableClock(kCLOCK_PortE);
-        PORT_SetPinMux(PORTE, 22U, 4U);
-        PORT_SetPinMux(PORTE, 23U, 4U);
+        PORT_SetPinMux(PORTE, 22U, 4U); // TX
+        PORT_SetPinMux(PORTE, 23U, 4U); // RX
     }
 
     UART_GetDefaultConfig(&config);
@@ -44,12 +54,6 @@ void UART_Init_Config(UART_Type* uart) {
     uartClkSrcFreq = CLOCK_GetFreq(kCLOCK_BusClk);
     UART_Init(uart, &config, uartClkSrcFreq);
     UART_EnableInterrupts(uart, kUART_RxDataRegFullInterruptEnable);
-
-    uartMutex = xSemaphoreCreateMutex();
-    if (uartMutex == NULL) {
-        printf("Failed to create UART Mutex\r");
-        while (1);
-    }
 
     if (uart == UART0) {
         EnableIRQ(UART0_IRQn);
@@ -66,9 +70,9 @@ void UART_Init_Config(UART_Type* uart) {
  * @param uart Módulo de UART a utilizar
  * @param str Cadena de caracteres a enviar
  */
-void UART_SendString(UART_Type* uart, const char* str) {
+void UART_SendString(UART_Type* uart, SemaphoreHandle_t uartMutex, const char* str) {
     if (xSemaphoreTake(uartMutex, portMAX_DELAY)) {
-        char response[128];
+        char response[64];
         sprintf(response, "Comando recibido: %s\r", str);
 
         size_t offset = 0;
@@ -97,7 +101,7 @@ void UART0_IRQHandler(void) {
 
     if (kUART_RxDataRegFullFlag & UART_GetStatusFlags(UART0)) {
         data = UART_ReadByte(UART0);
-        xQueueSendFromISR(uartReceiveQueue, &data, &xHigherPriorityTaskWoken);
+        xQueueSendFromISR(uartRxQueue1, &data, &xHigherPriorityTaskWoken);
     }
 
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
@@ -112,7 +116,7 @@ void UART1_IRQHandler(void) {
 
     if (kUART_RxDataRegFullFlag & UART_GetStatusFlags(UART1)) {
         data = UART_ReadByte(UART1);
-        xQueueSendFromISR(uartReceiveQueue, &data, &xHigherPriorityTaskWoken);
+        xQueueSendFromISR(uartRxQueue1, &data, &xHigherPriorityTaskWoken);
     }
 
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
@@ -127,7 +131,7 @@ void UART2_IRQHandler(void) {
 
     if (kUART_RxDataRegFullFlag & UART_GetStatusFlags(UART2)) {
         data = UART_ReadByte(UART2);
-        xQueueSendFromISR(uartReceiveQueue, &data, &xHigherPriorityTaskWoken);
+        xQueueSendFromISR(uartRxQueue2, &data, &xHigherPriorityTaskWoken);
     }
 
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
