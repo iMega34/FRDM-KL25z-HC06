@@ -12,7 +12,7 @@
 #define I2C_BAUDRATE            100000U     // 100 kHz
 #define I2C_ADDR                0x27        // Dirección del LCD
 
-QueueHandle_t messageQueue;
+QueueHandle_t lcdQueue;
 SemaphoreHandle_t i2cSemaphore;
 
 i2c_master_handle_t g_m_handle;
